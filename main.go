@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+    "regexp"
 
 	"github.com/fatih/color"
 	"github.com/tidwall/gjson"
@@ -142,8 +143,26 @@ func pipeFile(ctx context.Context, wg *sync.WaitGroup, filepath string, outputFi
 }
 
 func print(line []byte, outFields []string, outColors []*color.Color, buff *bytes.Buffer, out io.Writer) {
-	jsonLine := gjson.ParseBytes(line)
+    rgx := regexp.MustCompile("([^{]+)({.*})([^}]+)")     //[32m
+    rs := rgx.FindStringSubmatch(string(line))
 
+    
+    pre := ""
+    cleaned := string(line)
+    post := ""
+    if len(rs) >= 3 {
+        pre = rs[1]
+        cleaned = regexp.MustCompile("\\\\n").ReplaceAllString(rs[2], "\n")
+        post = rs[3]
+    } else {
+        buff.WriteString(cleaned)
+    }
+
+    //buff.WriteString(cleaned + "\t")
+
+	jsonLine := gjson.ParseBytes([]byte(cleaned))
+
+    buff.WriteString(pre + "\t")
 	for idx, field := range outFields {
 		jsField := jsonLine.Get(field)
 		val := jsField.Str
@@ -160,6 +179,7 @@ func print(line []byte, outFields []string, outColors []*color.Color, buff *byte
 			buff.WriteString(val + "\t")
 		}
 	}
+    buff.WriteString(post + "\t")
 
 	if buff.Len() == 0 {
 		return
